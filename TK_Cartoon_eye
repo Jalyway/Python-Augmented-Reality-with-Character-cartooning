@@ -1,0 +1,214 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jun 13 16:24:19 2018
+
+@author: Wang
+"""
+
+import cv2
+import Tkinter as tk
+from PIL import Image
+from PIL import ImageTk
+
+face_cascade = cv2.CascadeClassifier('C:\Users\Wang\.spyder-py3\Haarcascades\haarcascade_frontalface_default.xml')
+eye_cascade = cv2.CascadeClassifier('C:\Users\Wang\.spyder-py3\Haarcascades\haarcascade_eye.xml')
+mouth_cascade = cv2.CascadeClassifier('C:\Users\Wang\.spyder-py3\Haarcascades\Mouth.xml')
+
+
+cap = cv2.VideoCapture(0)
+#Set up GUI
+window = tk.Tk()  #Makes main window
+window.wm_title("Digital Microscope")
+window.config(background="#FFFFFF")
+
+#Graphics window
+imageFrame = tk.Frame(window, width=600, height=500)
+imageFrame.grid(row=0, column=0, padx=10, pady=2)
+#Capture video frames
+lmain = tk.Label(imageFrame)
+lmain.grid(row=0, column=0)
+eye_open = False
+C_op = False
+m_op = False
+
+def show_frame():
+    _, frame = cap.read()
+    frame = cv2.flip(frame, 1)
+    
+    height, width = frame.shape[:2]
+    img = frame;
+    
+    
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+
+    for (x,y,w,h) in faces:
+        cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
+        roi_gray = gray[y+h/4:y+h/2, x:x+w]
+        roi_color = img[y+h/4:y+h/2, x:x+w]
+        eyes = eye_cascade.detectMultiScale(roi_gray)
+        if eye_open:
+          for (ex,ey,ew,eh) in eyes:
+              F_eye_img=cv2.flip(eye_img,1)
+              if(((ex+ew/2)) < (w/2)):
+                  res=cv2.resize(eye_img,(ew,eh),interpolation=cv2.INTER_CUBIC)
+                  for i in range(ew):
+                      for j in range(eh):
+                          for k in range(3):
+                              if res[i][j][k] != 129:
+                                  roi_color[ey+j][ex+i][k]= res[j][i][k]
+                              else:
+                                  break
+              else:
+                  res=cv2.resize(F_eye_img,(ew,eh),interpolation=cv2.INTER_CUBIC)
+                  for i in range(ew):
+                      for j in range(eh):
+                          for k in range(3):
+                              if res[i][j][k] != 129:
+                                  roi_color[ey+j][ex+i][k]= res[j][i][k]
+                              else:
+                                  break
+        if m_op:
+          m_gray = gray[y+(5*h)/8:y+h, x:x+w]
+          m_color = img[y+(5*h)/8:y+h, x:x+w]
+          mouth = mouth_cascade.detectMultiScale(m_gray)
+          for (mx,my,mw,mh) in mouth:
+              res_t=cv2.resize(tooth_img,((5*mw)/4,mh),interpolation=cv2.INTER_CUBIC)
+              for i in range((5*mw)/4):
+                 for j in range(mh):
+                    for k in range(3):
+                      if res_t[j][i][k] != 129:
+                         m_color[my+j-15][mx+i][k]= res_t[j][i][k]
+                      else:
+                         break
+    
+    if C_op:
+      num_down = 2       # number of downsampling steps
+      num_bilateral = 7  # number of bilateral filtering steps
+ 
+      img_rgb = img
+ 
+      # downsample image using Gaussian pyramid
+      img_color = img_rgb
+      for _ in range(num_down):
+          img_color = cv2.pyrDown(img_color)
+        
+          # repeatedly apply small bilateral filter instead of
+          # applying one large filter
+      for _ in range(num_bilateral):
+          img_color = cv2.bilateralFilter(img_color, d=9,
+                                          sigmaColor=9,
+                                          sigmaSpace=7)
+   
+      # upsample image to original size
+      for _ in range(num_down):
+          img_color = cv2.pyrUp(img_color)
+      
+        # convert to grayscale and apply median blur
+      img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
+      img_blur = cv2.medianBlur(img_gray, 7)
+    
+        # detect and enhance edges
+      img_edge = cv2.adaptiveThreshold(img_blur, 255,
+                                       cv2.ADAPTIVE_THRESH_MEAN_C,
+                                       cv2.THRESH_BINARY,
+                                       blockSize=9,
+                                       C=2)
+
+      # convert back to color, bit-AND with color image
+      img_edge = cv2.cvtColor(img_edge, cv2.COLOR_GRAY2RGB)
+      img_cartoon = cv2.bitwise_and(img_color, img_edge)
+      img = img_cartoon
+     
+    
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
+    img = Image.fromarray(img)
+    imgtk = ImageTk.PhotoImage(image=img)
+    lmain.imgtk = imgtk
+    lmain.configure(image=imgtk)
+    lmain.after(10, show_frame) 
+
+
+#Slider window (slider controls stage position)
+sliderFrame = tk.Frame(window, width=600, height=200)
+sliderFrame.grid(row = 600, column=0, padx=10, pady=2)
+sliderFrame2 = tk.Frame(window, width=600, height=200)
+sliderFrame2.grid(row = 800, column=0, padx=10, pady=2)
+sliderFrame3 = tk.Frame(window, width=600, height=200)
+sliderFrame3.grid(row = 1000, column=0, padx=10, pady=2)
+
+def hit_me():
+    global eye_open,C_op,m_op
+    eye_open = False
+    C_op = False
+    m_op = False
+    cap.release()
+    img_close = cv2.imread('C:\Users\Wang\.spyder-py3\images\White.jpg')
+    img_close = Image.fromarray(img_close)
+    imgtk = ImageTk.PhotoImage(image=img_close)
+    lmain.imgtk = imgtk
+    lmain.configure(image=imgtk)
+    lmain.after(10, show_frame) 
+def c_me():
+    global cap
+    cap = cv2.VideoCapture(0)
+    show_frame()
+    
+def eye_me():
+    global eye_img,eye_open
+    eye_open = True
+    eye_img = cv2.imread('C:\Users\Wang\.spyder-py3\images\SlayerEye.jpg')
+def eye_eye_me():
+    global eye_img,eye_open
+    eye_open = True
+    eye_img=cv2.imread('C:\Users\Wang\.spyder-py3\images\Eye.jpg')
+    
+def b_eye_me():
+    global eye_img,eye_open
+    eye_open = True
+    eye_img=cv2.imread('C:\Users\Wang\.spyder-py3\images\S_eye.jpg')
+    
+
+def C_me():
+    global C_op
+    if C_op:
+        C_op = False    
+    else:
+        C_op = True
+def m1_me():
+    global m_op,tooth_img
+    m_op = True
+    tooth_img = cv2.imread('C:\Users\Wang\.spyder-py3\images\Mouth.jpg')
+    
+def m2_me():
+    global m_op,tooth_img
+    m_op = True
+    tooth_img = cv2.imread('C:\Users\Wang\.spyder-py3\images\m3.jpg')
+
+hit_me()
+b = tk.Button(sliderFrame,text='關閉攝像頭', width=15, height=2,command=hit_me)
+b.grid(row = 600, column=50, padx=10, pady=2)
+c = tk.Button(sliderFrame,text='開啟攝像頭', width=15, height=2,command=c_me)
+c.grid(row = 600, column=0, padx=10, pady=2)
+t = tk.Button(sliderFrame,text='卡通化', width=15, height=2,command=C_me)
+t.grid(row = 600, column=60, padx=10, pady=2)
+
+
+e = tk.Button(sliderFrame2,text='煞氣目珠', width=15, height=2,command=eye_me)
+e.grid(row = 600, column=80, padx=10, pady=2)
+f = tk.Button(sliderFrame2,text='眼睛', width=15, height=2,command=eye_eye_me)
+f.grid(row = 600, column=90, padx=10, pady=2)
+s = tk.Button(sliderFrame2,text='大目仔', width=15, height=2,command=b_eye_me)
+s.grid(row = 600, column=100, padx=10, pady=2)
+
+
+m1 = tk.Button(sliderFrame3,text='猥瑣嘴', width=15, height=2,command=m1_me)
+m1.grid(row = 600, column=80, padx=10, pady=2)
+m2 = tk.Button(sliderFrame3,text='笑', width=15, height=2,command=m2_me)
+m2.grid(row = 600, column=90, padx=10, pady=2)
+
+
+
+
+window.mainloop()  #Starts GUI
